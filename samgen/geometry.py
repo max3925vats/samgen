@@ -21,6 +21,7 @@ from .core.gro import GroStructure, GroAtom, write_gro
 from .core.lattice import Lattice
 from .core.molecule import Molecule
 from .core import orient
+from .core import periodicity as periodicity_mod
 from .design import make_design
 from .design.density import Density
 from .interactive import resolve_density_interactive
@@ -110,6 +111,22 @@ def generate_geometry(config: dict, components: Dict[str, Molecule],
 
     box = lat.final_box(ncols, nrows, boxz)
     struct = GroStructure(title="SAM surface (samgen geometry)", atoms=atoms, box=box)
+
+    pc = config.get("periodicity_check", {})
+    periodicity_ok = True
+    if pc.get("enabled", True):
+        ligand_resname = None
+        if isinstance(design, Density):
+            ligand_resname = components[design.ligand].name
+        report = periodicity_mod.check_surface(
+            struct, lat, ligand_resname=ligand_resname,
+            min_spacing=pc.get("min_spacing", 0.40), tol=pc.get("tol", 0.002))
+        periodicity_ok = report.ok
+        if not report.ok:
+            if pc.get("on_failure", "warn") == "error":
+                raise ValueError(str(report))
+            print("warning: " + str(report))
+
     write_gro(struct, out_gro)
 
     manifest = {
@@ -122,6 +139,7 @@ def generate_geometry(config: dict, components: Dict[str, Molecule],
         "itp": {components[k].name: components[k].itp_path for k in components},
         "order": config.get("output", {}).get("order"),
         "leaflets": config.get("leaflets", 1),
+        "periodicity_ok": periodicity_ok,
     }
     if manifest_path:
         with open(manifest_path, "w") as fh:

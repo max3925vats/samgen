@@ -145,3 +145,15 @@ def test_generate_geometry_density_low_grows_box(tmp_path):
                             is_tty=False)
     assert res.manifest["counts"]["ligand"] == 36
     assert round(res.manifest["final_box"][0], 3) == 11.976
+
+
+def test_density_surface_passes_periodicity(tmp_path, capsys):
+    coh = linear_strand("COH", n_chain=11)
+    ch3 = linear_strand("CH3", n_chain=11)
+    cfg = {"lattice": {"rounded": True, "tilt_alpha": 28, "tilt_beta": 53},
+           "box": {"x": 10.0, "y": 10.0, "z": 10.0},
+           "design": {"type": "density", "base": "base", "ligand": "ligand",
+                      "density": 1.0}}
+    res = generate_geometry(cfg, {"base": coh, "ligand": ch3},
+                            out_gro=str(tmp_path / "s.gro"), is_tty=False)
+    assert res.manifest["periodicity_ok"] is True
