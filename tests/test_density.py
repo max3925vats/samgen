@@ -71,3 +71,45 @@ def test_grid_options_drops_degenerate_low_density():
     assert opts                                  # not empty
     assert all(o.ncols > 0 and o.nrows > 0 for o in opts)
     assert all(o.count >= 1 for o in opts)
+
+
+from samgen.core.lattice import Lattice
+from samgen.interactive import resolve_density_interactive
+from samgen.design.density import Density
+import pytest
+
+LAT = Lattice.rounded()
+
+def _grid0(boxx=10.0, boxy=10.0):
+    return LAT.dimensions(boxx, boxy, even_cols=True)   # (22, 24)
+
+def test_density_unique_no_prompt():
+    d = Density("coh", "ch3", density=1.0)              # k=2 tiles -> unique
+    nc, nr = _grid0()
+    opt = resolve_density_interactive(d, LAT, nc, nr, is_tty=False)
+    assert (opt.nx, opt.ny, opt.count) == (11, 12, 132)
+
+def test_density_batch_requires_choice():
+    d = Density("coh", "ch3", density=1.0/3)            # k=4 -> needs choice
+    nc, nr = _grid0()
+    with pytest.raises(ValueError, match="density_choice"):
+        resolve_density_interactive(d, LAT, nc, nr, is_tty=False)
+
+def test_density_batch_choice_above():
+    d = Density("coh", "ch3", density=1.0/3, choice="above")
+    nc, nr = _grid0()
+    opt = resolve_density_interactive(d, LAT, nc, nr, is_tty=False)
+    assert opt.count == 36 and opt.ncols == 24          # box grew in x, no seam
+
+def test_density_interactive_prompt_pick():
+    d = Density("coh", "ch3", density=1.0/3)
+    nc, nr = _grid0()
+    opt = resolve_density_interactive(d, LAT, nc, nr,
+                                      input_fn=lambda _: "below", is_tty=True)
+    assert opt.count == 30 and opt.ncols == 20
+
+def test_density_ligand_grid_override_no_prompt():
+    d = Density("coh", "ch3", density=1.0, ligand_grid=(8, 10))
+    nc, nr = _grid0()
+    opt = resolve_density_interactive(d, LAT, nc, nr, is_tty=False)
+    assert (opt.nx, opt.ny, opt.count) == (8, 10, 80)   # explicit, no prompt
