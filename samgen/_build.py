@@ -16,12 +16,21 @@ from .topology import assemble_topology
 
 
 def load_components(config: dict, root: str = ".") -> Dict[str, Molecule]:
-    """Instantiate Molecules for every key in config['components']."""
+    """Instantiate Molecules for every key in config['components'].
+
+    Also stashes per-component orientation metadata under config['components_meta']
+    (anchor, canonicalize, backbone_carbons) for the geometry stage.
+    """
     comps: Dict[str, Molecule] = {}
+    meta: Dict[str, dict] = {}
     for key, spec in config["components"].items():
         gro = os.path.join(root, spec["gro"])
         itp = os.path.join(root, spec["itp"]) if spec.get("itp") else None
         comps[key] = Molecule.from_files(name=spec["resname"], gro=gro, itp=itp)
+        meta[key] = {k: spec[k] for k in ("anchor", "canonicalize",
+                                          "backbone_carbons", "allow_anchor_autodetect")
+                     if k in spec}
+    config["components_meta"] = meta
     return comps
 
 

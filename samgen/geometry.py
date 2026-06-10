@@ -22,6 +22,7 @@ from .core.lattice import Lattice
 from .core.molecule import Molecule
 from .core import orient
 from .core import periodicity as periodicity_mod
+from .core import anchor as anchor_mod
 from .design import make_design
 from .design.density import Density
 from .interactive import resolve_density_interactive
@@ -67,13 +68,29 @@ def generate_geometry(config: dict, components: Dict[str, Molecule],
 
     # Prepare per-component coordinates. When applying the tilt we first run the
     # loud orientation sanity check; when trusting pre-tilted input we skip it.
+    # Per-component canonicalization is opt-in via config['components_meta'].
+    meta = config.get("components_meta", {})
     tilted: Dict[str, np.ndarray] = {}
     for key, mol in components.items():
+        coords = mol.coords
+        cmeta = meta.get(key, {})
         if apply_tilt:
-            orient.check_oriented(mol.coords)  # raises if mis-oriented
-            tilted[key] = orient.apply_tilt(mol.coords, alpha, beta)
+            if cmeta.get("canonicalize"):
+                ares = anchor_mod.resolve_anchor(
+                    mol, cmeta.get("anchor"),
+                    allow_autodetect=cmeta.get("allow_anchor_autodetect", False))
+                head = anchor_mod.backbone_head(
+                    mol, ares.anchor_idx, cmeta.get("backbone_carbons", 9))
+                coords = orient.canonicalize(coords, ares.anchor_idx, head)
+            else:
+                orient.check_oriented(coords)    # loud failure if not canonicalized
+            tilted[key] = orient.apply_tilt(coords, alpha, beta)
         else:
-            tilted[key] = mol.coords
+            tilted[key] = coords
+
+    if apply_tilt:
+        print("note: strand orientation is best-effort; VERIFY the tilt/twist of "
+              "each component before running MD (see README 'Orientation applicability').")
 
     # Resolve a relative pattern path against the config directory before the
     # design module opens it.
