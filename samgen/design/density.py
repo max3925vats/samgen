@@ -66,7 +66,13 @@ def grid_options(ncols: int, nrows: int, k: int,
     """
     xs = sorted(set(_axis_multiples(ncols, k)))
     ys = sorted(set(_axis_multiples(nrows, k)))
-    return [GridOption(cx, cy, k, k, cx * colsep, cy * rowsep) for cx in xs for cy in ys]
+    # Filter out degenerate options where an axis multiple rounded down to zero
+    # (happens when k > ncols or k > nrows at extreme low density).
+    return [
+        GridOption(cx, cy, k, k, cx * colsep, cy * rowsep)
+        for cx in xs for cy in ys
+        if cx > 0 and cy > 0
+    ]
 
 
 def explicit_grid(ncols: int, nrows: int, nx: int, ny: int,

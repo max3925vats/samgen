@@ -63,3 +63,11 @@ def test_density_label_before_configure_raises():
     import pytest
     with pytest.raises(ValueError, match="not resolved"):
         d.label(0, 0)
+
+
+def test_grid_options_drops_degenerate_low_density():
+    # k larger than ncols -> the 'below' multiple is 0; it must be filtered out
+    opts = D.grid_options(22, 24, 24, ROUNDED.colsep, ROUNDED.rowsep)
+    assert opts                                  # not empty
+    assert all(o.ncols > 0 and o.nrows > 0 for o in opts)
+    assert all(o.count >= 1 for o in opts)
