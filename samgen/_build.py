@@ -26,12 +26,14 @@ def load_components(config: dict, root: str = ".") -> Dict[str, Molecule]:
 
 
 def build(config: dict, root: str = ".", out_gro: str = "sam.gro",
-          out_top: str = "topol.top", out_reordered: Optional[str] = "sam-reordered.gro"):
+          out_top: str = "topol.top", out_reordered: Optional[str] = "sam-reordered.gro",
+          input_fn=input, is_tty=None):
     """Full pipeline. Returns (surface_gro, top, counts)."""
     components = load_components(config, root)
     out = config.get("output", {})
     geom = generate_geometry(config, components, out_gro=out_gro,
-                             manifest_path=out_gro + ".manifest.json", root=root)
+                             manifest_path=out_gro + ".manifest.json", root=root,
+                             input_fn=input_fn, is_tty=is_tty)
 
     order = out.get("order") or [m.name for m in components.values()]
     itp_map = {m.name: m.itp_path for m in components.values()}
