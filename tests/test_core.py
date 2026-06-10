@@ -85,3 +85,15 @@ def test_canonicalize_points_anchor_to_head_up():
     v = out[1] - out[0]
     v = v / np.linalg.norm(v)
     assert v[2] > 0.99  # now points along +z
+
+
+def test_site_density_and_sites_for():
+    lat = Lattice.rounded()                      # colsep=0.499, rowsep=0.432
+    assert math.isclose(lat.site_density(), 1.0/(0.499*0.432))
+    sites = list(lat.sites_for(4, 6))            # explicit grid
+    assert len(sites) == 24
+    # row 1 is x-offset (hex stagger), row 0 is not
+    r0 = [s for s in sites if s[0] == 0][0]
+    r1 = [s for s in sites if s[0] == 1][0]
+    assert math.isclose(r0[2], 0.0)
+    assert math.isclose(r1[2], lat.offset)

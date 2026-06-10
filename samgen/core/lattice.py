@@ -77,20 +77,26 @@ class Lattice:
             nrows += 1
         return ncols, nrows
 
-    def sites(self, boxx: float, boxy: float,
-              even_cols: bool = False) -> Iterator[Tuple[int, int, float, float]]:
-        """Yield (row, col, x, y) for every lattice site of the periodic tile.
+    def sites_for(self, ncols: int, nrows: int) -> Iterator[Tuple[int, int, float, float]]:
+        """Yield (row, col, x, y) for an explicit ncols x nrows tile.
 
-        Alternate rows are x-shifted by `offset` for hexagonal packing. Every
-        row has the same column count (see `dimensions`), so the surface edges
-        line up and the reported final box is genuinely periodic.
+        Alternate rows are x-shifted by `offset` for hexagonal packing.
         """
-        ncols, nrows = self.dimensions(boxx, boxy, even_cols)
         for row in range(nrows):
             xstart = self.offset if (row % 2 == 1) else 0.0
             y = row * self.rowsep
             for col in range(ncols):
                 yield row, col, xstart + col * self.colsep, y
+
+    def sites(self, boxx: float, boxy: float,
+              even_cols: bool = False) -> Iterator[Tuple[int, int, float, float]]:
+        """Yield sites for the periodic tile bounded by boxx x boxy."""
+        ncols, nrows = self.dimensions(boxx, boxy, even_cols)
+        yield from self.sites_for(ncols, nrows)
+
+    def site_density(self) -> float:
+        """Au site areal density (sites per nm^2) = 1 / (colsep * rowsep)."""
+        return 1.0 / (self.colsep * self.rowsep)
 
     def final_box(self, ncols: int, nrows: int, boxz: float) -> Tuple[float, float, float]:
         """Periodic box that matches how many sites were actually placed.
