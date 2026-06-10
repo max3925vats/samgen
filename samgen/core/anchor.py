@@ -7,6 +7,7 @@ silently guesses.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from typing import Optional
 import numpy as np
@@ -87,6 +88,40 @@ def _resolve_specified(mol: Molecule, specified: str | int) -> int:
         if atom.atomname == s:
             return i
     raise ValueError(f"{mol.name}: anchor atom {specified!r} not found")
+
+
+def backbone_head(mol: Molecule, anchor_idx: int, n_carbons: int = 9) -> int:
+    """Index of the Nth alkyl backbone carbon from the anchor S.
+
+    Walks the linear carbon chain from the anchor (skipping the methyl cap).
+    Used as the orientation 'head' so the tilt/twist axis follows the alkyl
+    spacer, not a divergent ligand headgroup. Warns and stops early if the
+    chain branches or ends before N carbons.
+    """
+    if mol.bonds is None or mol.masses is None:
+        raise ValueError(f"{mol.name}: backbone detection needs an .itp bond graph")
+
+    cap = _find_cap(mol, anchor_idx)
+    starts = [nb for nb in mol.neighbors(anchor_idx)
+              if mol.masses[nb] >= 11.0 and nb != cap]
+    if not starts:
+        raise ValueError(f"{mol.name}: no alkyl chain carbon bonded to the anchor")
+
+    prev, cur, count = anchor_idx, starts[0], 1
+    while count < n_carbons:
+        nxt = [nb for nb in mol.neighbors(cur)
+               if mol.masses[nb] >= 11.0 and nb != prev]
+        if len(nxt) == 0:
+            warnings.warn(f"{mol.name}: alkyl chain ends after {count} carbons "
+                          f"(< {n_carbons}); orienting on the shorter segment")
+            break
+        if len(nxt) > 1:
+            warnings.warn(f"{mol.name}: alkyl chain branches at carbon {count}; "
+                          f"orienting on the segment up to the branch")
+            break
+        prev, cur = cur, nxt[0]
+        count += 1
+    return cur
 
 
 def _find_cap(mol: Molecule, sulfur_idx: int) -> Optional[int]:
