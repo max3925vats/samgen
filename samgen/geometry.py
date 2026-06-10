@@ -22,6 +22,8 @@ from .core.lattice import Lattice
 from .core.molecule import Molecule
 from .core import orient
 from .design import make_design
+from .design.density import Density
+from .interactive import resolve_density_interactive
 
 
 @dataclass
@@ -44,7 +46,8 @@ def _make_lattice(latcfg: dict) -> Lattice:
 
 def generate_geometry(config: dict, components: Dict[str, Molecule],
                       out_gro: str, manifest_path: Optional[str] = None,
-                      root: str = ".") -> GeometryResult:
+                      root: str = ".",
+                      input_fn=input, is_tty=None) -> GeometryResult:
     """Tile `components` onto the lattice per `config`, write `out_gro`.
 
     `components` maps the keys used by the design (e.g. "base", "ligand") to
@@ -78,16 +81,23 @@ def generate_geometry(config: dict, components: Dict[str, Molecule],
         design_cfg["pattern"] = os.path.join(root, design_cfg["pattern"])
     design = make_design(design_cfg)
 
-    # Patterned designs (grid/density/multilig) force an even column count so
-    # the 2-site stagger lines up with the pattern; uniform does not.
-    even_cols = config["design"].get("type", "uniform") != "uniform"
+    # Patterned designs force an even column count; uniform does not.
+    even_cols = config["design"].get("type", "density") != "uniform"
+    ncols, nrows = lat.dimensions(boxx, boxy, even_cols)
+
+    # The density design resolves a perfectly-periodic stride and may grow the
+    # box; this can override (ncols, nrows).
+    if isinstance(design, Density):
+        opt = resolve_density_interactive(design, lat, ncols, nrows,
+                                          input_fn=input_fn, is_tty=is_tty)
+        design.configure(opt.kx, opt.ky)
+        ncols, nrows = opt.ncols, opt.nrows
 
     atoms = []
     resid = 0
     counts: Dict[str, int] = {key: 0 for key in components}
-    ncols, nrows = lat.dimensions(boxx, boxy, even_cols)
 
-    for row, col, x, y in lat.sites(boxx, boxy, even_cols):
+    for row, col, x, y in lat.sites_for(ncols, nrows):
         key = design.label(row, col)
         mol, coords = components[key], tilted[key]
         resid += 1

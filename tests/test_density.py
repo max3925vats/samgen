@@ -113,3 +113,35 @@ def test_density_ligand_grid_override_no_prompt():
     nc, nr = _grid0()
     opt = resolve_density_interactive(d, LAT, nc, nr, is_tty=False)
     assert (opt.nx, opt.ny, opt.count) == (8, 10, 80)   # explicit, no prompt
+
+
+import os
+from tests._synthetic import linear_strand
+from samgen.geometry import generate_geometry
+
+def test_generate_geometry_density_reproduces_132(tmp_path):
+    coh = linear_strand("COH", n_chain=11)
+    ch3 = linear_strand("CH3", n_chain=11)
+    cfg = {"lattice": {"rounded": True, "tilt_alpha": 28, "tilt_beta": 53},
+           "box": {"x": 10.0, "y": 10.0, "z": 10.0},
+           "design": {"type": "density", "base": "base", "ligand": "ligand",
+                      "density": 1.0}}
+    sam = str(tmp_path / "sam.gro")
+    res = generate_geometry(cfg, {"base": coh, "ligand": ch3}, out_gro=sam,
+                            is_tty=False)
+    assert res.manifest["counts"]["ligand"] == 132
+    bx, by, _ = res.manifest["final_box"]
+    assert round(bx, 3) == 10.978 and round(by, 3) == 10.368
+
+def test_generate_geometry_density_low_grows_box(tmp_path):
+    coh = linear_strand("COH", n_chain=11)
+    ch3 = linear_strand("CH3", n_chain=11)
+    cfg = {"lattice": {"rounded": True, "tilt_alpha": 28, "tilt_beta": 53},
+           "box": {"x": 10.0, "y": 10.0, "z": 10.0},
+           "design": {"type": "density", "base": "base", "ligand": "ligand",
+                      "density": 1.0/3, "density_choice": "above"}}
+    sam = str(tmp_path / "sam.gro")
+    res = generate_geometry(cfg, {"base": coh, "ligand": ch3}, out_gro=sam,
+                            is_tty=False)
+    assert res.manifest["counts"]["ligand"] == 36
+    assert round(res.manifest["final_box"][0], 3) == 11.976
