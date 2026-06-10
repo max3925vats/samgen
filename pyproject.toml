@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "samgen"
+version = "0.0.1"
+description = "Build self-assembled monolayer (SAM) surfaces for GROMACS"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Mayank Vats", email = "18255879+max3925vats@users.noreply.github.com" },
+]
+keywords = ["SAM", "self-assembled-monolayer", "GROMACS", "molecular-dynamics", "Au(111)"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+    "numpy>=1.24",
+    "pyyaml>=6.0",
+]
+
+[project.urls]
+Repository = "https://github.com/max3925vats/samgen"
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+samgen = "samgen.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["samgen*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

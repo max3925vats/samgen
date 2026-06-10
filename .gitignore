@@ -1,0 +1,43 @@
+# --- Reference / scratch material (not part of the package) ---
+ch3-single/
+mmc-single/
+mmc-withtail-single/
+SAM/
+
+# --- Internal design docs (kept local, never public) ---
+docs/STATUS.md
+docs/DESIGN.md
+docs/superpowers/
+
+# --- Editor / assistant session state ---
+.claude/
+
+# --- Reference papers ---
+*.pdf
+Love et al.*.md
+
+# --- macOS / editor cruft ---
+.DS_Store
+*~
+*.swp
+
+# --- Build / GROMACS artifacts ---
+*.tpr
+*.log
+mdout.mdp
+\#*\#
+sam*.gro
+!configs/**/*.gro
+*.manifest.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.coverage

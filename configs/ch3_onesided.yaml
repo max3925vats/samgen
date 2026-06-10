@@ -1,0 +1,26 @@
+# Single-component CH3 SAM (one-sided), methyl-terminated alkanethiol.
+# Paths are resolved relative to this config file's directory.
+# The bundled inputs/ strands are pre-oriented (chain along z); samgen applies
+# the SAM tilt. Swap in your own strand .gro/.itp the same way.
+lattice:
+  a: 0.288          # Au(111) lattice constant, nm
+  tilt_alpha: 28    # tilt from surface normal, deg (Love et al. 2005)
+  tilt_beta: 53     # twist about chain axis, deg
+box:
+  x: 8.0
+  y: 8.0
+  z: 5.0
+leaflets: 1
+components:
+  ch3:
+    gro: inputs/ch3.gro
+    itp: inputs/ch3.itp
+    resname: CH3
+    anchor: S12       # gold-facing (methyl-capped) sulfur
+design:
+  type: uniform
+  component: ch3
+output:
+  gro: sam.gro
+  order: [CH3]
+allow_anchor_autodetect: false

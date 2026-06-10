@@ -1,0 +1,33 @@
+# Two-component mixed CH3/OH SAM from a 0/1 design grid:
+#   methyl-terminated (CH3) ligand on a hydroxyl-terminated (COH) base.
+# Paths are resolved relative to this config file's directory.
+# The bundled inputs/ strands are pre-oriented (chain along z); samgen applies
+# the SAM tilt. Swap in your own strand .gro/.itp the same way.
+lattice:
+  a: 0.288
+  tilt_alpha: 28
+  tilt_beta: 53
+box:
+  x: 5.0
+  y: 5.0
+  z: 10.0
+leaflets: 1
+components:
+  coh:
+    gro: inputs/coh.gro
+    itp: inputs/coh.itp
+    resname: COH
+    anchor: S13         # gold-facing (methyl-capped) sulfur
+  ch3:
+    gro: inputs/ch3.gro
+    itp: inputs/ch3.itp
+    resname: CH3
+    anchor: S12
+design:
+  type: grid
+  pattern: inputs/pattern.dat
+  mapping: {0: coh, 1: ch3}
+output:
+  gro: sam.gro
+  order: [COH, CH3]     # [molecules] order; base first
+allow_anchor_autodetect: false
