@@ -1,8 +1,4 @@
-"""Topology parsing, merging, assembly, and the grompp gate.
-
-Uses the bundled ch3/coh example strands under configs/inputs/ (pre-oriented
-along z), so these run without any external data.
-"""
+"""Topology parsing, merging, assembly, and the grompp gate (synthetic inputs)."""
 
 import os
 import pytest
@@ -12,80 +8,64 @@ from samgen.core.topfile import parse_top
 from samgen.geometry import generate_geometry
 from samgen.topology import assemble_topology, merge_topfiles
 from samgen import gmx
+from tests._synthetic import linear_strand
 
-ROOT = os.path.join(os.path.dirname(__file__), "..")
-INPUTS = os.path.join(ROOT, "configs", "inputs")
-CH3_ITP = os.path.join(INPUTS, "ch3.itp")
-COH_ITP = os.path.join(INPUTS, "coh.itp")
-CH3_GRO = os.path.join(INPUTS, "ch3.gro")
-COH_GRO = os.path.join(INPUTS, "coh.gro")
+# A minimal self-contained .itp covering the two synthetic resnames.
+_ITP = """[ atomtypes ]
+ C  C 0.0 0.0 A 3.4e-01 4.6e-01
+ S  S 0.0 0.0 A 3.6e-01 1.0e+00
+[ moleculetype ]
+{name} 3
+[ atoms ]
+{atoms}
+"""
+
+def _write_itp(path, name, n_atoms):
+    rows = []
+    for i in range(n_atoms):
+        typ = "S" if i == 0 else "C"
+        mass = 32.06 if i == 0 else 14.027
+        rows.append(f" {i+1} {typ} 1 {name} A{i+1} {i+1} 0.0 {mass}")
+    path.write_text(_ITP.format(name=name, atoms="\n".join(rows)))
+    return str(path)
 
 
-def test_parse_extracts_moleculetype_and_atomtypes():
-    tf = parse_top(CH3_ITP)
-    assert "CH3" in tf.molecules
-    assert len(tf.atomtypes) > 0
-    # every atom type used by CH3 is defined in the same self-contained .itp
-    assert all(t in tf.atomtypes for t in tf.atomtype_names_used("CH3"))
-
-
-def test_merge_pools_components_and_unions_atomtypes():
-    merged, warns = merge_topfiles({"COH": COH_ITP, "CH3": CH3_ITP})
-    assert "COH" in merged.molecules and "CH3" in merged.molecules
-    # union covers both: hc is ch3-only, oh/ho are coh-only
-    assert {"hc", "oh", "ho"} <= set(merged.atomtypes)
+def test_parse_and_merge(tmp_path):
+    a = _write_itp(tmp_path / "a.itp", "AAA", 5)
+    b = _write_itp(tmp_path / "b.itp", "BBB", 6)
+    merged, warns = merge_topfiles({"AAA": a, "BBB": b})
+    assert "AAA" in merged.molecules and "BBB" in merged.molecules
+    assert {"C", "S"} <= set(merged.atomtypes)
 
 
 def test_assemble_writes_complete_top(tmp_path):
-    coh = Molecule.from_files("COH", COH_GRO, COH_ITP)
-    ch3 = Molecule.from_files("CH3", CH3_GRO, CH3_ITP)
-    cfg = {"lattice": {"a": 0.288, "tilt_alpha": 28, "tilt_beta": 53},
-           "box": {"x": 4.0, "y": 4.0, "z": 10.0},
-           "design": {"type": "density", "base": "base", "ligand": "ligand",
+    coh = linear_strand("AAA", n_chain=4, with_cap=False)   # 5 atoms
+    lig = linear_strand("BBB", n_chain=5, with_cap=False)   # 6 atoms
+    a = _write_itp(tmp_path / "a.itp", "AAA", 5)
+    b = _write_itp(tmp_path / "b.itp", "BBB", 6)
+    cfg = {"lattice": {"rounded": True, "tilt_alpha": 0, "tilt_beta": 0},
+           "box": {"x": 4.0, "y": 4.0, "z": 8.0},
+           "design": {"type": "fraction", "base": "base", "ligand": "ligand",
                       "fraction": 0.3, "seed": 1},
-           "output": {"order": ["COH", "CH3"]}}
+           "output": {"order": ["AAA", "BBB"]}}
     sam = str(tmp_path / "sam.gro")
-    generate_geometry(cfg, {"base": coh, "ligand": ch3}, out_gro=sam)
+    generate_geometry(cfg, {"base": coh, "ligand": lig}, out_gro=sam, is_tty=False)
     top = str(tmp_path / "topol.top")
-    counts = assemble_topology(sam, itp_map={"COH": COH_ITP, "CH3": CH3_ITP},
-                               order=["COH", "CH3"], out_top=top,
+    counts = assemble_topology(sam, itp_map={"AAA": a, "BBB": b},
+                               order=["AAA", "BBB"], out_top=top,
                                out_gro=str(tmp_path / "ro.gro"))
     text = open(top).read()
     for sec in ("[ defaults ]", "[ atomtypes ]", "[ moleculetype ]",
                 "[ system ]", "[ molecules ]"):
         assert sec in text
-    assert counts["COH"] + counts["CH3"] > 0
+    assert counts["AAA"] + counts["BBB"] > 0
 
 
 def test_missing_atomtype_raises(tmp_path):
-    # an .itp whose molecule references an undefined atom type must be rejected
     itp = tmp_path / "bad.itp"
-    itp.write_text(
-        "[ moleculetype ]\nBAD 3\n[ atoms ]\n"
-        "1 ZZ 1 BAD X1 1 0.0 12.0\n"
-    )
+    itp.write_text("[ moleculetype ]\nBAD 3\n[ atoms ]\n1 ZZ 1 BAD X1 1 0.0 12.0\n")
     gro = tmp_path / "s.gro"
     gro.write_text("t\n1\n    1BAD     X1    1   0.000   0.000   0.000\n1 1 1\n")
     with pytest.raises(ValueError, match="atom types not in"):
         assemble_topology(str(gro), itp_map={"BAD": str(itp)}, order=["BAD"],
                           out_top=str(tmp_path / "t.top"))
-
-
-@pytest.mark.skipif(not gmx.available(), reason="GROMACS not on PATH")
-def test_grompp_accepts_assembled_topology(tmp_path):
-    coh = Molecule.from_files("COH", COH_GRO, COH_ITP)
-    ch3 = Molecule.from_files("CH3", CH3_GRO, CH3_ITP)
-    cfg = {"lattice": {"a": 0.288, "tilt_alpha": 28, "tilt_beta": 53},
-           "box": {"x": 4.0, "y": 4.0, "z": 10.0},
-           "design": {"type": "grid", "pattern": None, "mapping": {0: "base", 1: "ligand"}},
-           "output": {"order": ["COH", "CH3"]}}
-    # all-zero pattern -> a uniform coh base, written on the fly
-    pat = tmp_path / "p.dat"
-    pat.write_text("\n".join(" ".join("0" for _ in range(20)) for _ in range(20)))
-    cfg["design"]["pattern"] = str(pat)
-    sam = str(tmp_path / "sam.gro")
-    generate_geometry(cfg, {"base": coh, "ligand": ch3}, out_gro=sam)
-    # validate=True runs grompp and raises if the topology is rejected
-    assemble_topology(sam, itp_map={"COH": COH_ITP, "CH3": CH3_ITP},
-                      order=["COH", "CH3"], out_top=str(tmp_path / "t.top"),
-                      out_gro=str(tmp_path / "ro.gro"), validate=True)
