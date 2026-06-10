@@ -40,3 +40,26 @@ def test_explicit_grid_anisotropic():
     assert o.ncols % o.kx == 0 and o.nrows % o.ky == 0   # periodic
     # kx and ky are chosen independently (anisotropic allowed)
     assert o.kx == round(22/8) and o.ky == round(24/10)
+
+
+def test_density_label_after_configure():
+    d = D.Density(base="coh", ligand="ch3", density=1.0)
+    d.configure(kx=2, ky=2)
+    # ligand on every 2nd col AND row; base elsewhere
+    assert d.label(0, 0) == "ch3"
+    assert d.label(0, 1) == "coh"
+    assert d.label(1, 0) == "coh"
+    assert d.label(2, 2) == "ch3"
+
+def test_density_label_anisotropic():
+    d = D.Density(base="coh", ligand="ch3", density=1.0)
+    d.configure(kx=2, ky=3)              # different strides per axis
+    assert d.label(0, 0) == "ch3"
+    assert d.label(3, 2) == "ch3"        # row 3 (÷3) and col 2 (÷2)
+    assert d.label(2, 2) == "coh"        # row 2 not ÷3
+
+def test_density_label_before_configure_raises():
+    d = D.Density(base="coh", ligand="ch3", density=1.0)
+    import pytest
+    with pytest.raises(ValueError, match="not resolved"):
+        d.label(0, 0)
