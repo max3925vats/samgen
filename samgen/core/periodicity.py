@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 from .gro import GroStructure
 from .lattice import Lattice
@@ -45,18 +46,28 @@ def _residue_centroids(struct: GroStructure, resname: Optional[str] = None) -> n
 
 
 def _nn_distances(xy: np.ndarray, box: Tuple[float, ...]) -> np.ndarray:
-    """Nearest-neighbour distance per point under the minimum-image convention."""
+    """Nearest-neighbour distance per point under the minimum-image convention.
+
+    Uses a KD-tree over the 3x3 block of periodic images (only the immediate
+    +/-1 images in x and y are needed for the minimum image, which is valid
+    while the nearest-neighbour distance is below the box size -- always true
+    for a SAM lattice). Each original point's 2nd-nearest image (the 1st is
+    itself at distance 0) is its true minimum-image nearest neighbour. O(n log n)
+    in time and O(n) in memory, vs the O(n^2) brute-force form.
+    """
+    n = len(xy)
+    if n < 2:
+        return np.full(n, np.inf)
     bx, by = box[0], box[1]
-    out = np.empty(len(xy))
-    for i in range(len(xy)):
-        dx = xy[:, 0] - xy[i, 0]
-        dy = xy[:, 1] - xy[i, 1]
-        dx -= bx * np.round(dx / bx)
-        dy -= by * np.round(dy / by)
-        d = np.hypot(dx, dy)
-        d[i] = np.inf
-        out[i] = d.min()
-    return out
+    pts = np.asarray(xy, dtype=float)
+    # Replicate the points into the 3x3 minimum-image image block.
+    shifts = np.array([(i * bx, j * by) for i in (-1, 0, 1) for j in (-1, 0, 1)])
+    images = (pts[None, :, :] + shifts[:, None, :]).reshape(-1, 2)  # (9n, 2)
+    tree = cKDTree(images)
+    # k=1 is the point's own centre image (distance 0); k=2 is the nearest
+    # neighbour under the minimum-image convention.
+    dists, _ = tree.query(pts, k=2)
+    return dists[:, 1]
 
 
 def check_box_multiple(box: Tuple[float, ...], lat: Lattice, tol: float) -> List[str]:
