@@ -1,0 +1,43 @@
+# configs/ch3_density.yaml
+# Default design: areal-density placement of a CH3 ligand on a COH base.
+# Paths resolve relative to this file. Bundled inputs are pre-oriented along z.
+# samgen keeps the ligand grid perfectly periodic on Au(111); if your box +
+# density don't tile uniquely it offers a 'below'/'above' choice (interactive),
+# or set design.density_choice for batch runs.
+lattice:
+  a: 0.288
+  tilt_alpha: 28
+  tilt_beta: 53
+  # rounded: true       # opt in for exact legacy box dims (10.978 x 10.368)
+box:
+  x: 10.0
+  y: 10.0
+  z: 10.0
+leaflets: 1
+components:
+  coh:
+    gro: inputs/coh.gro
+    itp: inputs/coh.itp
+    resname: COH
+    anchor: S13
+  ch3:
+    gro: inputs/ch3.gro
+    itp: inputs/ch3.itp
+    resname: CH3
+    anchor: S12
+design:
+  type: density           # the default; may be omitted
+  base: coh
+  ligand: ch3
+  density: 1.0            # ligands/nm^2
+  # density_choice: above # batch pick when the box doesn't tile uniquely
+  # ligand_grid: [11, 12] # explicit override (exact nx x ny; wins over density)
+output:
+  gro: sam.gro
+  order: [COH, CH3]
+periodicity_check:        # on by default, warn-only; shown here for reference
+  enabled: true
+  on_failure: warn        # warn | error
+  min_spacing: 0.40       # nm
+  tol: 0.002              # nm
+allow_anchor_autodetect: false
