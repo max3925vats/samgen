@@ -69,3 +69,56 @@ def test_missing_atomtype_raises(tmp_path):
     with pytest.raises(ValueError, match="atom types not in"):
         assemble_topology(str(gro), itp_map={"BAD": str(itp)}, order=["BAD"],
                           out_top=str(tmp_path / "t.top"))
+
+
+# ── Task 4: grompp validate-gate with real shipped GAFF inputs ────────────────
+
+_REPO_ROOT = os.path.join(os.path.dirname(__file__), "..")
+
+
+@pytest.mark.skipif(not gmx.available(), reason="gmx not on PATH")
+def test_grompp_accepts_ch3_surface(tmp_path):
+    """Assemble a CH3 surface from the shipped GAFF .gro/.itp and validate with grompp.
+
+    Uses configs/inputs/ch3.gro (resname CH3, anchor S12) — a complete GAFF
+    topology that grompp can fully validate without synthetic stand-ins.
+    """
+    from samgen.core.molecule import Molecule
+
+    ch3_gro = os.path.join(_REPO_ROOT, "configs", "inputs", "ch3.gro")
+    ch3_itp = os.path.join(_REPO_ROOT, "configs", "inputs", "ch3.itp")
+
+    mol = Molecule.from_files("CH3", ch3_gro, ch3_itp)
+
+    cfg = {
+        "lattice": {"rounded": True, "tilt_alpha": 28, "tilt_beta": 53},
+        "box": {"x": 4.0, "y": 4.0, "z": 8.0},
+        "design": {"type": "uniform", "component": "ch3"},
+        # Canonicalize from the pre-oriented ch3.gro (anchor = S12 by name)
+        "components_meta": {
+            "ch3": {
+                "canonicalize": True,
+                "anchor": "S12",
+                "backbone_carbons": 9,
+            }
+        },
+    }
+
+    surface_gro = str(tmp_path / "surface.gro")
+    generate_geometry(cfg, {"ch3": mol}, out_gro=surface_gro, is_tty=False)
+
+    out_top = str(tmp_path / "topol.top")
+    out_gro = str(tmp_path / "reordered.gro")
+
+    # validate=True runs gmx grompp as a hard gate; raises RuntimeError on failure
+    counts = assemble_topology(
+        surface_gro,
+        itp_map={"CH3": ch3_itp},
+        order=["CH3"],
+        out_top=out_top,
+        out_gro=out_gro,
+        validate=True,
+    )
+
+    # If we reach here grompp accepted the topology — assert count is sane
+    assert counts["CH3"] > 0
