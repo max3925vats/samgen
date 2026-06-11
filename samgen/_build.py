@@ -16,22 +16,33 @@ from .topology import assemble_topology
 
 
 def load_components(config: dict, root: str = ".") -> Dict[str, Molecule]:
-    """Instantiate Molecules for every key in config['components']."""
+    """Instantiate Molecules for every key in config['components'].
+
+    Also stashes per-component orientation metadata under config['components_meta']
+    (anchor, canonicalize, backbone_carbons) for the geometry stage.
+    """
     comps: Dict[str, Molecule] = {}
+    meta: Dict[str, dict] = {}
     for key, spec in config["components"].items():
         gro = os.path.join(root, spec["gro"])
         itp = os.path.join(root, spec["itp"]) if spec.get("itp") else None
         comps[key] = Molecule.from_files(name=spec["resname"], gro=gro, itp=itp)
+        meta[key] = {k: spec[k] for k in ("anchor", "canonicalize",
+                                          "backbone_carbons", "allow_anchor_autodetect")
+                     if k in spec}
+    config["components_meta"] = meta
     return comps
 
 
 def build(config: dict, root: str = ".", out_gro: str = "sam.gro",
-          out_top: str = "topol.top", out_reordered: Optional[str] = "sam-reordered.gro"):
+          out_top: str = "topol.top", out_reordered: Optional[str] = "sam-reordered.gro",
+          input_fn=input, is_tty=None):
     """Full pipeline. Returns (surface_gro, top, counts)."""
     components = load_components(config, root)
     out = config.get("output", {})
     geom = generate_geometry(config, components, out_gro=out_gro,
-                             manifest_path=out_gro + ".manifest.json", root=root)
+                             manifest_path=out_gro + ".manifest.json", root=root,
+                             input_fn=input_fn, is_tty=is_tty)
 
     order = out.get("order") or [m.name for m in components.values()]
     itp_map = {m.name: m.itp_path for m in components.values()}

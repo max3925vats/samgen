@@ -6,7 +6,7 @@ or residue order.
 
 Covers one-sided tiling and two-sided strand fusion + full two-sided SAM
 geometry (proper 180-deg rotation about a horizontal axis through the shared S;
-see docs/DESIGN.md sec. 6).
+see the project README for a full description of the two-sided geometry).
 """
 
 from __future__ import annotations
@@ -21,7 +21,11 @@ from .core.gro import GroStructure, GroAtom, write_gro
 from .core.lattice import Lattice
 from .core.molecule import Molecule
 from .core import orient
+from .core import periodicity as periodicity_mod
+from .core import anchor as anchor_mod
 from .design import make_design
+from .design.density import Density
+from .interactive import resolve_density_interactive
 
 
 @dataclass
@@ -44,7 +48,8 @@ def _make_lattice(latcfg: dict) -> Lattice:
 
 def generate_geometry(config: dict, components: Dict[str, Molecule],
                       out_gro: str, manifest_path: Optional[str] = None,
-                      root: str = ".") -> GeometryResult:
+                      root: str = ".",
+                      input_fn=input, is_tty=None) -> GeometryResult:
     """Tile `components` onto the lattice per `config`, write `out_gro`.
 
     `components` maps the keys used by the design (e.g. "base", "ligand") to
@@ -63,13 +68,32 @@ def generate_geometry(config: dict, components: Dict[str, Molecule],
 
     # Prepare per-component coordinates. When applying the tilt we first run the
     # loud orientation sanity check; when trusting pre-tilted input we skip it.
+    # Per-component canonicalization is opt-in via config['components_meta'].
+    meta = config.get("components_meta", {})
     tilted: Dict[str, np.ndarray] = {}
     for key, mol in components.items():
+        coords = mol.coords
+        cmeta = meta.get(key, {})
         if apply_tilt:
-            orient.check_oriented(mol.coords)  # raises if mis-oriented
-            tilted[key] = orient.apply_tilt(mol.coords, alpha, beta)
+            if cmeta.get("canonicalize"):
+                ares = anchor_mod.resolve_anchor(
+                    mol, cmeta.get("anchor"),
+                    allow_autodetect=cmeta.get("allow_anchor_autodetect", False))
+                head = anchor_mod.backbone_head(
+                    mol, ares.anchor_idx, cmeta.get("backbone_carbons", 9))
+                coords = orient.canonicalize(coords, ares.anchor_idx, head)
+                # canonicalize() makes the backbone axis +z by construction;
+                # check_oriented (whole-molecule PCA) would be fooled by a
+                # divergent headgroup, so it is skipped here intentionally.
+            else:
+                orient.check_oriented(coords)    # loud failure if not canonicalized
+            tilted[key] = orient.apply_tilt(coords, alpha, beta)
         else:
-            tilted[key] = mol.coords
+            tilted[key] = coords
+
+    if apply_tilt:
+        print("note: strand orientation is best-effort; VERIFY the tilt/twist of "
+              "each component before running MD (see README 'Orientation applicability').")
 
     # Resolve a relative pattern path against the config directory before the
     # design module opens it.
@@ -78,20 +102,33 @@ def generate_geometry(config: dict, components: Dict[str, Molecule],
         design_cfg["pattern"] = os.path.join(root, design_cfg["pattern"])
     design = make_design(design_cfg)
 
-    # Patterned designs (grid/density/multilig) force an even column count so
-    # the 2-site stagger lines up with the pattern; uniform does not.
-    even_cols = config["design"].get("type", "uniform") != "uniform"
+    # Patterned designs force an even column count; uniform does not.
+    even_cols = config["design"].get("type", "density") != "uniform"
+    ncols, nrows = lat.dimensions(boxx, boxy, even_cols)
+
+    # The density design resolves a perfectly-periodic stride and may grow the
+    # box; this can override (ncols, nrows).
+    if isinstance(design, Density):
+        opt = resolve_density_interactive(design, lat, ncols, nrows,
+                                          input_fn=input_fn, is_tty=is_tty)
+        design.configure(opt.kx, opt.ky)
+        ncols, nrows = opt.ncols, opt.nrows
 
     atoms = []
     resid = 0
     counts: Dict[str, int] = {key: 0 for key in components}
-    ncols, nrows = lat.dimensions(boxx, boxy, even_cols)
+    # Collect the Au placement-site (x, y) for each strand so the periodicity
+    # check can use the exact site coordinates instead of residue centroids.
+    # On mixed surfaces (different strand shapes), centroids can appear closer
+    # than the actual Au-site separation — causing false-positive warnings.
+    site_positions = []
 
-    for row, col, x, y in lat.sites(boxx, boxy, even_cols):
+    for row, col, x, y in lat.sites_for(ncols, nrows):
         key = design.label(row, col)
         mol, coords = components[key], tilted[key]
         resid += 1
         counts[key] += 1
+        site_positions.append((x, y))
         shift = np.array([x, y, 0.0])
         for i, atom in enumerate(mol.struct.atoms):
             px, py, pz = coords[i] + shift
@@ -100,6 +137,23 @@ def generate_geometry(config: dict, components: Dict[str, Molecule],
 
     box = lat.final_box(ncols, nrows, boxz)
     struct = GroStructure(title="SAM surface (samgen geometry)", atoms=atoms, box=box)
+
+    pc = config.get("periodicity_check", {})
+    periodicity_ok = True
+    if pc.get("enabled", True):
+        ligand_resname = None
+        if isinstance(design, Density):
+            ligand_resname = components[design.ligand].name
+        report = periodicity_mod.check_surface(
+            struct, lat, ligand_resname=ligand_resname,
+            min_spacing=pc.get("min_spacing", 0.40), tol=pc.get("tol", 0.002),
+            site_xy=np.array(site_positions))
+        periodicity_ok = report.ok
+        if not report.ok:
+            if pc.get("on_failure", "warn") == "error":
+                raise ValueError(str(report))
+            print("warning: " + str(report))
+
     write_gro(struct, out_gro)
 
     manifest = {
@@ -112,6 +166,7 @@ def generate_geometry(config: dict, components: Dict[str, Molecule],
         "itp": {components[k].name: components[k].itp_path for k in components},
         "order": config.get("output", {}).get("order"),
         "leaflets": config.get("leaflets", 1),
+        "periodicity_ok": periodicity_ok,
     }
     if manifest_path:
         with open(manifest_path, "w") as fh:
@@ -136,7 +191,7 @@ def build_twosided_strand(strand: Molecule, anchor_idx: int,
                           armB_suffix: str = "b") -> TwoSidedResult:
     """Fuse a one-sided strand into a two-sided (shared-S) strand. GEOMETRY ONLY.
 
-    Approach (docs/DESIGN.md sec. 6):
+    Approach:
       1. Canonicalize: anchor->head along +z, shared S translated to the origin.
       2. Strip the methyl cap on the anchor S (cap carbon + its hydrogens).
       3. Arm B = a copy of arm A's non-sulfur atoms, transformed by a PROPER
@@ -206,8 +261,9 @@ def generate_twosided(strand: Molecule, anchor_idx: int, cap_carbon_idx: int,
                       config: dict, out_strand: str, out_surface: str):
     """Build the two-sided strand AND the full two-sided SAM geometry.
 
-    Both outputs are GEOMETRY ONLY. Parameterize `out_strand`, then build the
-    simulation-ready surface from the returned .itp via the normal build path.
+    Both outputs are GEOMETRY ONLY (placement only; topology and orientation are
+    user-verified). Parameterize `out_strand`, then assemble topology from the
+    returned .itp via the normal build path.
     """
     res = build_twosided_strand(strand, anchor_idx, cap_carbon_idx, out_strand)
     cfg = {**config, "design": {"type": "uniform", "component": "twosided"}}

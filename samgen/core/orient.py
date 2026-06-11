@@ -1,6 +1,6 @@
 """Strand orientation: apply the SAM tilt, validate, optionally canonicalize.
 
-Design (see docs/DESIGN.md sec. 5): orientation is layered, never silent magic.
+Orientation is layered, never silent magic:
     1. Default trusts the input (chain ~ along z) and only applies the tilt.
     2. A sanity check always runs and fails LOUD if a strand is mis-oriented.
     3. Chemistry-anchored canonicalization is opt-in (anchor -> head vector),

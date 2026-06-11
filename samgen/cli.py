@@ -1,7 +1,8 @@
 """Command-line interface: `samgen geometry|topology|build CONFIG`.
 
 Mirrors the three independently runnable stages. Anchor handling follows the
-prompt-first / consent-to-guess policy in docs/DESIGN.md.
+prompt-first / consent-to-guess policy: prompt in interactive mode, never
+silently auto-detect in batch mode without explicit consent.
 """
 
 from __future__ import annotations

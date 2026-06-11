@@ -1,7 +1,7 @@
 """Minimal GROMACS .top/.itp parser for topology assembly.
 
 Splits a topology file into the pieces we need to merge multiple components into
-one simulation-ready topol.top:
+one merged topol.top:
 
     * [defaults]      (kept verbatim; must agree across components)
     * [atomtypes]     (unioned across components, deduped by type name)
