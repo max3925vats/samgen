@@ -1,8 +1,7 @@
 """Anchor (gold-facing S) and methyl-cap detection.
 
-Policy (docs/DESIGN.md sec. 5): prompt the user first; auto-detect ONLY with
-explicit consent, and always report what was picked and why. Detection never
-silently guesses.
+Policy: prompt the user first; auto-detect ONLY with explicit consent, and
+always report what was picked and why. Detection never silently guesses.
 """
 
 from __future__ import annotations

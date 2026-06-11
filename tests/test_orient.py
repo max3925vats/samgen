@@ -43,6 +43,21 @@ def test_density_orientation_uses_backbone_not_headgroup(tmp_path):
                                      "canonicalize": True, "backbone_carbons": 9}}}
     sam = str(tmp_path / "s.gro")
     res = generate_geometry(cfg, {"c": mol_raw}, out_gro=sam, is_tty=False)
-    # after canonicalization the backbone (S->C9) should be ~along z
-    # (verified indirectly: tiling did not raise the loud check_oriented error)
     assert res.manifest["natoms"] > 0
+
+    # Direct check: read back the first strand and verify S->C9 points +z.
+    # tilt_alpha=0 tilt_beta=0, so after canonicalization the backbone is
+    # exactly along z (no further rotation applied). A wrong axis (e.g. along x)
+    # would give dz ≈ 0, making this assertion fail clearly.
+    from samgen.core.gro import read_gro
+    struct = read_gro(sam)
+    res1 = [a for a in struct.atoms if a.resid == 1]
+    s_atom  = next(a for a in res1 if a.atomname == "S1")
+    c9_atom = next(a for a in res1 if a.atomname == "C9")
+    dz = c9_atom.z - s_atom.z
+    # backbone length S->C9 is 9 * 0.15 nm = 1.35 nm; after zero-tilt
+    # canonicalization dz must be positive and >= 0.9 * 1.35 = 1.215 nm
+    assert dz > 1.215, (
+        f"backbone not along +z after canonicalization: S.z={s_atom.z:.3f}, "
+        f"C9.z={c9_atom.z:.3f}, dz={dz:.3f} nm"
+    )

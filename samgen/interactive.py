@@ -1,6 +1,6 @@
 """Interactive anchor resolution: prompt first, guess only on consent.
 
-Policy (docs/DESIGN.md sec. 5):
+Policy:
   * If the anchor is specified (config or argument), use it without prompting.
   * In an interactive terminal, prompt the user to type the anchor; if they
     leave it blank, ask whether to auto-detect, then SHOW the guess and its
@@ -90,6 +90,12 @@ def resolve_density_interactive(
     if design.ligand_grid is not None:
         nx, ny = design.ligand_grid
         return _density.explicit_grid(ncols0, nrows0, nx, ny, lat.colsep, lat.rowsep)
+
+    if design.density is None:
+        raise ValueError(
+            "density design requires a 'density:' (ligands/nm^2) or a "
+            "'ligand_grid:' [nx, ny]"
+        )
 
     k = _density.choose_stride(lat.site_density(), design.density)
     options = _density.grid_options(ncols0, nrows0, k, lat.colsep, lat.rowsep)

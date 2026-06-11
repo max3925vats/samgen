@@ -83,6 +83,15 @@ LAT = Lattice.rounded()
 def _grid0(boxx=10.0, boxy=10.0):
     return LAT.dimensions(boxx, boxy, even_cols=True)   # (22, 24)
 
+def test_density_missing_density_raises_clear_error():
+    """No 'density:' key and no 'ligand_grid:' should give a clear ValueError,
+    not a cryptic TypeError from inside choose_stride."""
+    d = Density("coh", "ch3")          # density=None, ligand_grid=None
+    nc, nr = _grid0()
+    with pytest.raises(ValueError, match="density.*ligand_grid"):
+        resolve_density_interactive(d, LAT, nc, nr, is_tty=False)
+
+
 def test_density_unique_no_prompt():
     d = Density("coh", "ch3", density=1.0)              # k=2 tiles -> unique
     nc, nr = _grid0()

@@ -6,7 +6,7 @@ or residue order.
 
 Covers one-sided tiling and two-sided strand fusion + full two-sided SAM
 geometry (proper 180-deg rotation about a horizontal axis through the shared S;
-see docs/DESIGN.md sec. 6).
+see the project README for a full description of the two-sided geometry).
 """
 
 from __future__ import annotations
@@ -191,7 +191,7 @@ def build_twosided_strand(strand: Molecule, anchor_idx: int,
                           armB_suffix: str = "b") -> TwoSidedResult:
     """Fuse a one-sided strand into a two-sided (shared-S) strand. GEOMETRY ONLY.
 
-    Approach (docs/DESIGN.md sec. 6):
+    Approach:
       1. Canonicalize: anchor->head along +z, shared S translated to the origin.
       2. Strip the methyl cap on the anchor S (cap carbon + its hydrogens).
       3. Arm B = a copy of arm A's non-sulfur atoms, transformed by a PROPER
@@ -261,8 +261,9 @@ def generate_twosided(strand: Molecule, anchor_idx: int, cap_carbon_idx: int,
                       config: dict, out_strand: str, out_surface: str):
     """Build the two-sided strand AND the full two-sided SAM geometry.
 
-    Both outputs are GEOMETRY ONLY. Parameterize `out_strand`, then build the
-    simulation-ready surface from the returned .itp via the normal build path.
+    Both outputs are GEOMETRY ONLY (placement only; topology and orientation are
+    user-verified). Parameterize `out_strand`, then assemble topology from the
+    returned .itp via the normal build path.
     """
     res = build_twosided_strand(strand, anchor_idx, cap_carbon_idx, out_strand)
     cfg = {**config, "design": {"type": "uniform", "component": "twosided"}}

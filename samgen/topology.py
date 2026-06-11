@@ -79,7 +79,7 @@ def merge_topfiles(sources: Dict[str, str]) -> Tuple[TopFile, List[str]]:
 def assemble_topology(surface_gro: str, itp_map: Dict[str, str], order: List[str],
                       out_top: str, out_gro: Optional[str] = None,
                       validate: bool = False, mdp: Optional[str] = None) -> Dict[str, int]:
-    """Write a simulation-ready topol.top for `surface_gro`.
+    """Write a merged topol.top for `surface_gro`.
 
     itp_map: resname -> source .itp/.top. order: resnames in [molecules] order.
     Returns per-resname counts. With validate=True, runs `gmx grompp` as a gate.

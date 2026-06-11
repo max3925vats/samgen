@@ -58,7 +58,7 @@ class Lattice:
                    even_cols: bool = False) -> Tuple[int, int]:
         """Return (ncols, nrows) for a *periodic* tile bounded by boxx x boxy.
 
-        Safeguards keep the final box a valid periodic cell (see docs/DESIGN.md):
+        Safeguards keep the final box a valid periodic cell:
 
         * ncols is fixed by the first (non-offset) row and applied to EVERY row,
           so offset rows aren't one strand short. Offset rows therefore extend

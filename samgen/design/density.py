@@ -109,12 +109,12 @@ class Density:
     interactive.resolve_density_interactive.
     """
 
-    def __init__(self, base: str, ligand: str, density: float,
+    def __init__(self, base: str, ligand: str, density: Optional[float] = None,
                  choice: Optional[str] = None,
                  ligand_grid: Optional[Tuple[int, int]] = None) -> None:
         self.base = base
         self.ligand = ligand
-        self.density = density          # target ligands/nm^2
+        self.density = density          # target ligands/nm^2; None if only ligand_grid used
         self.choice = choice            # 'below' | 'above' for batch mode
         self.ligand_grid = ligand_grid  # explicit (nx, ny) override, or None
         self._kx = 0                    # set by configure()

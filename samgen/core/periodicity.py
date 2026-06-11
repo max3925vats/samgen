@@ -59,7 +59,7 @@ def _nn_distances(xy: np.ndarray, box: Tuple[float, ...]) -> np.ndarray:
     return out
 
 
-def check_box_multiple(box, lat: Lattice, tol: float) -> List[str]:
+def check_box_multiple(box: Tuple[float, ...], lat: Lattice, tol: float) -> List[str]:
     issues = []
     for dim, sep, name in ((box[0], lat.colsep, "x"), (box[1], lat.rowsep, "y")):
         n = dim / sep
@@ -69,7 +69,7 @@ def check_box_multiple(box, lat: Lattice, tol: float) -> List[str]:
     return issues
 
 
-def check_min_distance(xy: np.ndarray, box, min_spacing: float) -> List[str]:
+def check_min_distance(xy: np.ndarray, box: Tuple[float, ...], min_spacing: float) -> List[str]:
     if len(xy) < 2:
         return []
     gmin = float(_nn_distances(xy, box).min())
@@ -79,7 +79,7 @@ def check_min_distance(xy: np.ndarray, box, min_spacing: float) -> List[str]:
     return []
 
 
-def check_ligand_uniformity(lig_xy: np.ndarray, box, tol: float) -> List[str]:
+def check_ligand_uniformity(lig_xy: np.ndarray, box: Tuple[float, ...], tol: float) -> List[str]:
     if len(lig_xy) < 2:
         return []
     nn = _nn_distances(lig_xy, box)
