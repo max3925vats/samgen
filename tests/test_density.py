@@ -168,6 +168,59 @@ def test_density_surface_passes_periodicity(tmp_path, capsys):
     assert res.manifest["periodicity_ok"] is True
 
 
+# ── Task 5: _format_density_options label ambiguity fix ──────────────────────
+
+from samgen.interactive import _format_density_options
+
+
+def test_format_density_options_four_options_unambiguous():
+    """With 4 options (min, two intermediates, max), labels must be unambiguous.
+
+    Uses ncols=21, nrows=23, k=4 which brackets both axes and produces
+    counts [25, 30, 30, 36] — exactly one min and one max.
+    """
+    opts = D.grid_options(21, 23, 4, ROUNDED.colsep, ROUNDED.rowsep)
+    assert len(opts) == 4, "precondition: exactly 4 options expected"
+
+    formatted = _format_density_options(opts, 1.0 / 3)
+
+    # Exactly one [below] and exactly one [above]
+    assert formatted.count("[below]") == 1
+    assert formatted.count("[above]") == 1
+
+    # Intermediate options get the [ -- ] label
+    assert formatted.count("[ -- ]") == 2
+
+    # A hint to use ligand_grid for intermediate selection
+    assert "ligand_grid" in formatted
+
+
+def test_format_density_options_two_options_no_intermediate():
+    """With 2 options (one axis indivisible), no [ -- ] labels appear."""
+    # k=4, ncols=22 (divisible by 4? 22%4=2 no), nrows=24 (24%4=0 yes) -> 2 options
+    opts = D.grid_options(22, 24, 4, ROUNDED.colsep, ROUNDED.rowsep)
+    assert len(opts) == 2, "precondition: exactly 2 options expected"
+
+    formatted = _format_density_options(opts, 1.0 / 3)
+
+    assert formatted.count("[below]") == 1
+    assert formatted.count("[above]") == 1
+    assert "[ -- ]" not in formatted
+
+
+def test_select_grid_below_above_still_returns_min_max():
+    """select_grid('below'/'above') must still return the min/max-count option."""
+    opts = D.grid_options(21, 23, 4, ROUNDED.colsep, ROUNDED.rowsep)
+    below = D.select_grid(opts, "below")
+    above = D.select_grid(opts, "above")
+
+    min_count = min(o.count for o in opts)
+    max_count = max(o.count for o in opts)
+
+    assert below.count == min_count
+    assert above.count == max_count
+
+
 def test_mixed_shape_density_surface_passes_periodicity(tmp_path):
     """Regression: mixed-shape strands (different n_chain) must not cause a
     false-positive periodicity failure.
