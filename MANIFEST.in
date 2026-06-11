@@ -1,0 +1,6 @@
+graft configs
+include README.md
+include LICENSE
+global-exclude *.manifest.json
+global-exclude sam.gro sam-*.gro topol.top
+global-exclude *.pyc
