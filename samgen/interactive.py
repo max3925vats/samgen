@@ -64,12 +64,29 @@ def resolve_anchor_interactive(
 
 
 def _format_density_options(options, target: float) -> str:
+    """Format density grid options for display.
+
+    Labels are unambiguous regardless of how many options exist:
+      - the single min-count option -> [below]
+      - the single max-count option -> [above]
+      - any intermediate option     -> [ -- ]  (use ligand_grid: to select)
+    """
     lines = [f"  target density {target:.3f}/nm^2 - choose a perfectly periodic grid:"]
+    min_count = min(o.count for o in options)
+    max_count = max(o.count for o in options)
+    has_intermediate = any(o.count != min_count and o.count != max_count for o in options)
     for o in sorted(options, key=lambda x: x.count):
-        tag = "below" if o.count == min(x.count for x in options) else "above"
+        if o.count == min_count:
+            tag = "below"
+        elif o.count == max_count:
+            tag = "above"
+        else:
+            tag = " -- "
         lines.append(f"    [{tag}] {o.nx} x {o.ny} = {o.count} ligands, "
                      f"box {o.box_x:.3f} x {o.box_y:.3f} nm, "
                      f"density {o.density:.3f}/nm^2")
+    if has_intermediate:
+        lines.append("    (set ligand_grid to select an intermediate option)")
     return "\n".join(lines)
 
 
