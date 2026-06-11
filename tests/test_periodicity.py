@@ -3,6 +3,24 @@ from samgen.core.gro import GroStructure, GroAtom
 from samgen.core.lattice import Lattice
 from samgen.core import periodicity as P
 
+
+def _mixed_surface_2site(cs: float, box: tuple) -> GroStructure:
+    """Two-residue surface where each residue has TWO atoms that pull the
+    centroid toward the neighbour — simulating a mixed coh/ch3 surface.
+
+    Site 0 at x=0: anchor at (0, 0), chain atom at (0.35, 0) -> centroid (0.175, 0)
+    Site 1 at x=cs: anchor at (cs, 0), chain atom at (cs-0.35, 0) -> centroid (cs-0.175, 0)
+    Centroid distance ≈ 0.149 nm << 0.40 nm min_spacing (false positive without fix).
+    Actual site distance = cs = 0.499 nm (valid).
+    """
+    atoms = [
+        GroAtom(1, "BAS", "S1", 1, 0.0, 0.0, 0.0),
+        GroAtom(1, "BAS", "C1", 2, 0.35, 0.0, 0.0),
+        GroAtom(2, "BAS", "S1", 3, cs, 0.0, 0.0),
+        GroAtom(2, "BAS", "C1", 4, cs - 0.35, 0.0, 0.0),
+    ]
+    return GroStructure("mixed_2site", atoms, box)
+
 LAT = Lattice.rounded()
 
 def _surface(strands_xy, box, ligand_flags=None):
@@ -36,3 +54,47 @@ def test_box_not_lattice_multiple_flags():
     rep = P.check_surface(_surface([(0.0, 0.0)], box), LAT)
     assert not rep.ok
     assert any("multiple" in m for m in rep.issues)
+
+
+# ---------------------------------------------------------------------------
+# site_xy parameter tests
+# ---------------------------------------------------------------------------
+
+def test_site_xy_uniform_grid_passes_even_with_close_centroids():
+    """site_xy overrides centroid-based distance check.
+
+    Build a surface whose residue xy-centroids are only ~0.149 nm apart
+    (mimicking a mixed coh/ch3 surface where different-shaped strands have
+    centroids pulled toward adjacent sites) but whose placement sites are
+    0.499 nm apart (a valid Au lattice).  Without site_xy this triggers a
+    false-positive warning; with site_xy it should pass.
+    """
+    cs = LAT.colsep   # 0.499 nm
+    box = (2 * cs, LAT.rowsep * 2, 5.0)
+    struct = _mixed_surface_2site(cs, box)
+
+    # Without site_xy the centroid distance (~0.149 nm) triggers a false positive.
+    rep_no_site = P.check_surface(struct, LAT, min_spacing=0.40)
+    assert not rep_no_site.ok, (
+        "Expected a false-positive without site_xy (centroid distances too close)")
+
+    # With the correct site positions the min-distance check uses 0.499 nm -> OK.
+    site_xy = np.array([[0.0, 0.0], [cs, 0.0]])
+    rep = P.check_surface(struct, LAT, min_spacing=0.40, site_xy=site_xy)
+    assert rep.ok, rep.issues
+
+
+def test_site_xy_seam_still_flags():
+    """A seam in site_xy (too-short box causing wrap-around clash) is still caught."""
+    cs = LAT.colsep
+    # 3 valid sites but the box is shrunk so the periodic image of site 0
+    # is only 0.3 nm from site 2 — a genuine seam.
+    site_xy = np.array([[0.0, 0.0], [cs, 0.0], [2 * cs, 0.0]])
+    # Shrink x by 0.25*cs so the wrap distance from site[2] to site[0] is
+    # cs - 0.25*cs = 0.75*cs ≈ 0.374 nm < 0.40 nm minimum.
+    box = (3 * cs - 0.25 * cs, LAT.rowsep * 2, 5.0)
+    struct = _surface(list(site_xy), box)
+
+    rep = P.check_surface(struct, LAT, min_spacing=0.40, site_xy=site_xy)
+    assert not rep.ok
+    assert any("min strand" in m or "seam" in m for m in rep.issues)

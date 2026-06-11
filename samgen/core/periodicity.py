@@ -93,12 +93,30 @@ def check_ligand_uniformity(lig_xy: np.ndarray, box, tol: float) -> List[str]:
 
 def check_surface(struct: GroStructure, lat: Lattice,
                   ligand_resname: Optional[str] = None,
-                  min_spacing: float = 0.40, tol: float = 0.002) -> PeriodicityReport:
-    """Run all applicable periodicity checks; return a combined report."""
+                  min_spacing: float = 0.40, tol: float = 0.002,
+                  site_xy: Optional[np.ndarray] = None) -> PeriodicityReport:
+    """Run all applicable periodicity checks; return a combined report.
+
+    Parameters
+    ----------
+    site_xy:
+        Optional (N, 2) array of Au placement-site (x, y) coordinates.
+        When provided, the min-distance check uses these exact site positions
+        rather than per-residue xy centroids.  This avoids false positives on
+        mixed surfaces (e.g. coh base + ch3 ligand) where differently-shaped
+        strands have centroids that appear closer than the actual Au-site
+        separation.  The box-multiple and ligand-uniformity checks are
+        unaffected by this parameter.
+    """
     issues: List[str] = []
     issues += check_box_multiple(struct.box, lat, tol)
-    issues += check_min_distance(_residue_centroids(struct), struct.box, min_spacing)
+    # Use placement-site coords when available; fall back to residue centroids
+    # for surfaces loaded from disk where site info is not stored.
+    ref_xy = site_xy if site_xy is not None else _residue_centroids(struct)
+    issues += check_min_distance(ref_xy, struct.box, min_spacing)
     if ligand_resname is not None:
+        # Uniformity check always uses ligand centroids — correct for a single
+        # ligand type (shape is uniform so centroid spacing reflects site spacing).
         issues += check_ligand_uniformity(
             _residue_centroids(struct, ligand_resname), struct.box, tol)
     return PeriodicityReport(ok=not issues, issues=issues)

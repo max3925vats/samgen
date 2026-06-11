@@ -114,12 +114,18 @@ def generate_geometry(config: dict, components: Dict[str, Molecule],
     atoms = []
     resid = 0
     counts: Dict[str, int] = {key: 0 for key in components}
+    # Collect the Au placement-site (x, y) for each strand so the periodicity
+    # check can use the exact site coordinates instead of residue centroids.
+    # On mixed surfaces (different strand shapes), centroids can appear closer
+    # than the actual Au-site separation — causing false-positive warnings.
+    site_positions = []
 
     for row, col, x, y in lat.sites_for(ncols, nrows):
         key = design.label(row, col)
         mol, coords = components[key], tilted[key]
         resid += 1
         counts[key] += 1
+        site_positions.append((x, y))
         shift = np.array([x, y, 0.0])
         for i, atom in enumerate(mol.struct.atoms):
             px, py, pz = coords[i] + shift
@@ -137,7 +143,8 @@ def generate_geometry(config: dict, components: Dict[str, Molecule],
             ligand_resname = components[design.ligand].name
         report = periodicity_mod.check_surface(
             struct, lat, ligand_resname=ligand_resname,
-            min_spacing=pc.get("min_spacing", 0.40), tol=pc.get("tol", 0.002))
+            min_spacing=pc.get("min_spacing", 0.40), tol=pc.get("tol", 0.002),
+            site_xy=np.array(site_positions))
         periodicity_ok = report.ok
         if not report.ok:
             if pc.get("on_failure", "warn") == "error":

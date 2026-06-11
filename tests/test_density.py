@@ -157,3 +157,31 @@ def test_density_surface_passes_periodicity(tmp_path, capsys):
     res = generate_geometry(cfg, {"base": coh, "ligand": ch3},
                             out_gro=str(tmp_path / "s.gro"), is_tty=False)
     assert res.manifest["periodicity_ok"] is True
+
+
+def test_mixed_shape_density_surface_passes_periodicity(tmp_path):
+    """Regression: mixed-shape strands (different n_chain) must not cause a
+    false-positive periodicity failure.
+
+    Before the fix, per-residue centroids on a coh (n_chain=11) base + ch3
+    (n_chain=6) ligand surface under a real tilt were only ~0.262 nm apart —
+    below the 0.40 nm min_spacing threshold — even though all Au sites are
+    0.499 nm apart.  The fix passes placement site coords to check_surface so
+    the min-distance check uses the true Au-site separation.
+    """
+    # Base strand is longer (11 chain carbons) than the ligand (6 chain carbons)
+    # so their post-tilt centroids occupy different xy positions relative to
+    # the sulfur anchor — reproducing the mixed-centroid false-positive scenario.
+    base = linear_strand("COH", n_chain=11)
+    ligand = linear_strand("CH3", n_chain=6)
+    cfg = {
+        "lattice": {"rounded": True, "tilt_alpha": 28, "tilt_beta": 53},
+        "box": {"x": 10.0, "y": 10.0, "z": 10.0},
+        "design": {"type": "density", "base": "base", "ligand": "ligand",
+                   "density": 1.0},
+    }
+    res = generate_geometry(cfg, {"base": base, "ligand": ligand},
+                            out_gro=str(tmp_path / "mixed.gro"), is_tty=False)
+    assert res.manifest["periodicity_ok"] is True, (
+        "Mixed-shape surface incorrectly flagged as non-periodic"
+    )
