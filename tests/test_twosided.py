@@ -55,3 +55,33 @@ def test_both_arms_get_correct_tilt(tmp_path):
     aA = math.degrees(math.acos(np.clip(hA @ [0, 0, 1.0], -1, 1)))
     aB = math.degrees(math.acos(np.clip(hB @ [0, 0, -1.0], -1, 1)))
     assert abs(aA - 28) < 0.5 and abs(aB - 28) < 0.5
+
+
+def test_full_twosided_surface(tmp_path):
+    """generate_twosided builds a tiled two-sided SAM surface with correct atom count."""
+    mol = _strand()
+    ar = anchor.autodetect_anchor(mol)
+
+    config = {
+        "lattice": {"rounded": True, "tilt_alpha": 28, "tilt_beta": 53},
+        "box": {"x": 4.0, "y": 4.0, "z": 12.0},
+    }
+
+    strand_gro = str(tmp_path / "strand.gro")
+    surface_gro = str(tmp_path / "surface.gro")
+
+    res, geom = generate_twosided(
+        mol, ar.anchor_idx, ar.cap_carbon_idx,
+        config, strand_gro, surface_gro,
+    )
+
+    # strand .gro must be written
+    import os
+    assert os.path.isfile(strand_gro), "strand .gro was not written"
+
+    # total atoms = strands * atoms_per_fused_strand
+    # atoms_per_fused_strand = 2 * n_one_sided - 9  (cap C + 3H + shared S saved once)
+    n_one_sided = len(mol.struct.atoms)          # 16 for the synthetic strand
+    atoms_per_strand = 2 * n_one_sided - 9       # == res.natoms
+    strands = geom.manifest["grid"]["ncols"] * geom.manifest["grid"]["nrows"]
+    assert geom.manifest["natoms"] == strands * atoms_per_strand

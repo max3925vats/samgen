@@ -82,6 +82,9 @@ def generate_geometry(config: dict, components: Dict[str, Molecule],
                 head = anchor_mod.backbone_head(
                     mol, ares.anchor_idx, cmeta.get("backbone_carbons", 9))
                 coords = orient.canonicalize(coords, ares.anchor_idx, head)
+                # canonicalize() makes the backbone axis +z by construction;
+                # check_oriented (whole-molecule PCA) would be fooled by a
+                # divergent headgroup, so it is skipped here intentionally.
             else:
                 orient.check_oriented(coords)    # loud failure if not canonicalized
             tilted[key] = orient.apply_tilt(coords, alpha, beta)

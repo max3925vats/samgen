@@ -102,6 +102,8 @@ def backbone_head(mol: Molecule, anchor_idx: int, n_carbons: int = 9) -> int:
         raise ValueError(f"{mol.name}: backbone detection needs an .itp bond graph")
 
     cap = _find_cap(mol, anchor_idx)
+    # approximation: O/N bonded in-chain would also pass this carbon test
+    # (fine for thiol alkyl SAMs).
     starts = [nb for nb in mol.neighbors(anchor_idx)
               if mol.masses[nb] >= 11.0 and nb != cap]
     if not starts:
