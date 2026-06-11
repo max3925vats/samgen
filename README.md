@@ -1,6 +1,7 @@
 # samgen
 
 [![tests](https://github.com/max3925vats/samgen/actions/workflows/tests.yml/badge.svg)](https://github.com/max3925vats/samgen/actions/workflows/tests.yml)
+[![PyPI](https://img.shields.io/pypi/v/samgen)](https://pypi.org/project/samgen/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 [![License: BSD-3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-green)](LICENSE)
 
@@ -34,11 +35,11 @@ Requires **Python 3.11+**. Dependencies (`numpy`, `scipy`, `pyyaml`) install
 automatically.
 
 ```bash
-# from source (latest on GitHub)
-pip install git+https://github.com/max3925vats/samgen.git
+# from PyPI
+pip install samgen
 
-# or from a release wheel (see the Releases page)
-pip install samgen-0.1.1-py3-none-any.whl
+# or the latest from GitHub
+pip install git+https://github.com/max3925vats/samgen.git
 
 # or editable, for development (adds pytest)
 git clone https://github.com/max3925vats/samgen.git
